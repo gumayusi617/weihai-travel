@@ -1713,15 +1713,17 @@ function calcRoute() {
     const a = Math.sin(dLat/2)**2 + Math.cos(from.lat*Math.PI/180)*Math.cos(to.lat*Math.PI/180)*Math.sin(dLng/2)**2;
     const dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     const roadDist = Math.round(dist * 1.2);
+    // 铁路实际里程比直线长（绕行系数：短途绕得多，长途接近直线）
+    const railDetour = dist > 600 ? 1.25 : dist > 300 ? 1.35 : 1.45;
+    const railDist = Math.round(dist * railDetour);
 
     let html = `<strong>📍 ${fromKey}（${from.type}）→ ${toKey}（${to.type}）</strong><br>`;
-    html += `直线距离约 <b>${dist} 公里</b><br><br>`;
+    html += `直线距离约 <b>${dist} 公里</b>（铁路实际约 ${railDist} 公里）<br><br>`;
 
     if (dist > 300) {
         // Long distance - flight or high-speed rail
         const flightTime = Math.round(dist / 750 * 60 + 90); // flight + check-in
-        const trainTime = Math.round(dist / 280 * 60); // high-speed ~280km/h
-        const trainTimeSlow = Math.round(dist / 160 * 60); // normal train
+        const trainTime = Math.round(railDist / 260 * 60); // 高铁实际里程，均速~260km/h（含停站）
         const flightLow = Math.round(dist*0.7+150), flightHigh = Math.round(dist*1.2+200);
         const trainLow = Math.round(dist*0.45+20), trainHigh = Math.round(dist*0.6+30);
         html += `<b>✈️ 方案一：飞机</b><br>`;
@@ -1747,8 +1749,8 @@ function calcRoute() {
         html += `高速费约 ${Math.round(roadDist*0.5)} 元，油费约 ${Math.round(roadDist*0.7)} 元`;
     } else if (dist > 50) {
         // Medium distance - train or drive
-        const trainTime = Math.round(dist / 200 * 60);
-        const driveTime = Math.round(dist / 90 * 60);
+        const trainTime = Math.round(railDist / 170 * 60); // 城际/动车实际里程，均速~170km/h（停站多）
+        const driveTime = Math.round(roadDist / 90 * 60);
         const trainLow = Math.round(dist*0.4+10), trainHigh = Math.round(dist*0.55+15);
         html += `<b>🚄 方案一：高铁/动车</b><br>`;
         html += `乘高铁/动车到威海站，约 ${Math.floor(trainTime/60)}小时${trainTime%60}分钟，二等座约 ${trainLow}-${trainHigh} 元<br><br>`;
