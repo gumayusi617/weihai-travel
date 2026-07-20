@@ -206,6 +206,22 @@ h1, h2, h3 { font-family: 'Noto Serif SC', serif; }
 .route-result.show { display: block; }
 .route-btn.locate { background: #27ae60; }
 .route-btn.locate:hover { background: #219a52; }
+/* Custom POI dropdown (replaces native datalist) */
+.poi-input-wrap { position: relative; display: inline-block; }
+.poi-input-wrap input { padding-right: 34px !important; }
+.poi-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border: none; background: transparent; cursor: pointer; font-size: 0.7rem; color: #888; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.2s; }
+.poi-toggle:hover { background: #eef5fb; color: var(--primary); }
+.poi-toggle.open { transform: translateY(-50%) rotate(180deg); color: var(--primary); }
+.poi-dropdown { position: absolute; top: calc(100% + 6px); left: 0; width: 280px; max-height: 340px; overflow-y: auto; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); z-index: 1200; display: none; padding: 6px; }
+.poi-dropdown.show { display: block; animation: fadeIn 0.18s ease; }
+.poi-dropdown::-webkit-scrollbar { width: 6px; }
+.poi-dropdown::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+.poi-dd-cat { font-size: 0.72rem; font-weight: 600; color: #999; padding: 8px 10px 4px; display: flex; align-items: center; gap: 6px; }
+.poi-dd-cat .legend-dot { width: 8px; height: 8px; }
+.poi-dd-item { padding: 8px 10px; font-size: 0.85rem; color: #333; border-radius: 6px; cursor: pointer; transition: background 0.15s; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.poi-dd-item:hover { background: #f0f7ff; color: var(--primary); }
+.poi-dd-item .dd-info { font-size: 0.7rem; color: #aaa; flex-shrink: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poi-dd-empty { padding: 16px; text-align: center; font-size: 0.82rem; color: #aaa; }
 .route-mode-hint { margin-top: 8px; font-size: 0.8rem; color: #999; }
 .map-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #f0f0f0; z-index: 500; font-size: 1rem; color: #666; }
 
@@ -461,15 +477,22 @@ h1, h2, h3 { font-family: 'Noto Serif SC', serif; }
     <div class="map-route-bar">
         <div class="route-inputs">
             <button class="route-btn locate" onclick="locateMe()">📍 定位</button>
-            <input type="text" id="mapRouteFrom" placeholder="起点（点击地图或输入）" list="mapPoiList">
+            <div class="poi-input-wrap">
+                <input type="text" id="mapRouteFrom" placeholder="起点（点击地图或输入）" autocomplete="off" onfocus="openPoiDropdown('from')" oninput="onPoiInput('from')">
+                <button class="poi-toggle" id="poiToggleFrom" onclick="togglePoiDropdown('from')" title="展开全部地点">▼</button>
+                <div class="poi-dropdown" id="poiDropdownFrom"></div>
+            </div>
             <span class="route-arrow">→</span>
-            <input type="text" id="mapRouteTo" placeholder="终点（点击地图或输入）" list="mapPoiList">
+            <div class="poi-input-wrap">
+                <input type="text" id="mapRouteTo" placeholder="终点（点击地图或输入）" autocomplete="off" onfocus="openPoiDropdown('to')" oninput="onPoiInput('to')">
+                <button class="poi-toggle" id="poiToggleTo" onclick="togglePoiDropdown('to')" title="展开全部地点">▼</button>
+                <div class="poi-dropdown" id="poiDropdownTo"></div>
+            </div>
             <button class="route-btn" onclick="calcMapRoute()">🚗 规划路线</button>
             <button class="route-btn clear" onclick="clearMapRoute()">清除</button>
         </div>
-        <div class="route-mode-hint" id="routeModeHint">💡 点击地图任意位置可设为起点/终点（先点起点，再点终点）</div>
+        <div class="route-mode-hint" id="routeModeHint">💡 点击地图任意位置可设为起点/终点（先点起点，再点终点）· 点▼可浏览全部地点</div>
         <div class="route-result" id="mapRouteResult"></div>
-        <datalist id="mapPoiList"></datalist>
     </div>
     <div class="map-container">
         <div id="map"></div>
@@ -1384,14 +1407,96 @@ function clearMapRoute() {
     map.setView([37.35, 122.10], 10);
 }
 
-// Populate datalist for route inputs
-function populatePoiList() {
-    const dl = document.getElementById('mapPoiList');
-    if (!dl) return;
+// ===== Custom POI dropdown for route inputs =====
+const poiCatMeta = {
+    scenic:{color:'#e74c3c',label:'景点'}, hotel:{color:'#3498db',label:'酒店'}, food:{color:'#e67e22',label:'美食'},
+    transport:{color:'#2ecc71',label:'交通'}, bus:{color:'#9b59b6',label:'公交'}, mall:{color:'#f39c12',label:'商场'}, highway:{color:'#7f8c8d',label:'高速'}
+};
+
+function buildPoiDropdownHtml(filter) {
+    const q = (filter || '').trim().toLowerCase();
     let html = '';
-    Object.keys(mapData).forEach(type => { mapData[type].forEach(m => { html += `<option value="${m.name}">`; }); });
-    dl.innerHTML = html;
+    let total = 0;
+    Object.keys(mapData).forEach(type => {
+        const meta = poiCatMeta[type] || {color:'#999',label:type};
+        const items = mapData[type].filter(m => !q || m.name.toLowerCase().includes(q) || (m.info||'').toLowerCase().includes(q));
+        if (items.length === 0) return;
+        html += `<div class="poi-dd-cat"><span class="legend-dot" style="background:${meta.color}"></span>${meta.label}</div>`;
+        items.forEach(m => {
+            total++;
+            html += `<div class="poi-dd-item" onmousedown="selectPoiItem(this,'${type}','${m.name.replace(/'/g,"\\'")}',${m.lat},${m.lng})"><span>${m.name}</span><span class="dd-info">${m.info||''}</span></div>`;
+        });
+    });
+    if (total === 0) html = '<div class="poi-dd-empty">未找到匹配地点，可直接输入或点地图设置</div>';
+    return html;
 }
+
+function openPoiDropdown(which) {
+    const dd = document.getElementById(which==='from'?'poiDropdownFrom':'poiDropdownTo');
+    const toggle = document.getElementById(which==='from'?'poiToggleFrom':'poiToggleTo');
+    // Always show full list on focus/toggle regardless of current input
+    dd.innerHTML = buildPoiDropdownHtml('');
+    dd.classList.add('show');
+    toggle.classList.add('open');
+    // Close the other one
+    const otherDd = document.getElementById(which==='from'?'poiDropdownTo':'poiDropdownFrom');
+    const otherToggle = document.getElementById(which==='from'?'poiToggleTo':'poiToggleFrom');
+    otherDd.classList.remove('show'); otherToggle.classList.remove('open');
+}
+
+function togglePoiDropdown(which) {
+    const dd = document.getElementById(which==='from'?'poiDropdownFrom':'poiDropdownTo');
+    const toggle = document.getElementById(which==='from'?'poiToggleFrom':'poiToggleTo');
+    if (dd.classList.contains('show')) {
+        dd.classList.remove('show'); toggle.classList.remove('open');
+    } else {
+        // Triangle always shows the FULL list, ignoring current input content
+        dd.innerHTML = buildPoiDropdownHtml('');
+        dd.classList.add('show'); toggle.classList.add('open');
+    }
+}
+
+function onPoiInput(which) {
+    const input = document.getElementById(which==='from'?'mapRouteFrom':'mapRouteTo');
+    const dd = document.getElementById(which==='from'?'poiDropdownFrom':'poiDropdownTo');
+    const toggle = document.getElementById(which==='from'?'poiToggleFrom':'poiToggleTo');
+    // Live filter as user types
+    dd.innerHTML = buildPoiDropdownHtml(input.value);
+    dd.classList.add('show'); toggle.classList.add('open');
+    // Clear stored coords since text changed
+    if (which==='from') fromCoords = null; else toCoords = null;
+}
+
+function selectPoiItem(el, type, name, lat, lng) {
+    // Determine which input by closest dropdown
+    const dd = el.closest('.poi-dropdown');
+    const which = dd.id === 'poiDropdownFrom' ? 'from' : 'to';
+    const input = document.getElementById(which==='from'?'mapRouteFrom':'mapRouteTo');
+    input.value = name; // replace input content entirely
+    if (which==='from') { fromCoords = {lat, lng, name}; } else { toCoords = {lat, lng, name}; }
+    dd.classList.remove('show');
+    document.getElementById(which==='from'?'poiToggleFrom':'poiToggleTo').classList.remove('open');
+    // Fly to the location on map and highlight
+    if (map) {
+        map.setView([lat, lng], 14);
+        const found = allMarkers.find(m => m._name === name);
+        if (found) {
+            const me = found.getElement();
+            if (me) { me.classList.remove('marker-highlight'); void me.offsetWidth; me.classList.add('marker-highlight'); setTimeout(()=>me.classList.remove('marker-highlight'), 3200); }
+        }
+    }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('mousedown', function(e) {
+    if (!e.target.closest('.poi-input-wrap')) {
+        ['poiDropdownFrom','poiDropdownTo'].forEach(id => document.getElementById(id).classList.remove('show'));
+        ['poiToggleFrom','poiToggleTo'].forEach(id => document.getElementById(id).classList.remove('open'));
+    }
+});
+
+// Kept for backward compatibility (no-op now)
+function populatePoiList() {}
 
 function jumpToMap(name, lat, lng) {
     document.getElementById('map-section').scrollIntoView({ behavior: 'smooth' });
