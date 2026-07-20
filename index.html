@@ -1769,7 +1769,7 @@ function calcRoute() {
     }
 
     html += `<br><br><a href="#" onclick="event.preventDefault();jumpToMap('${toKey}',${to.lat},${to.lng})" style="color:var(--primary);font-weight:600;">🗺️ 在地图中查看目的地 →</a>`;
-    html += `<br><br><div style="margin-top:4px;padding:10px 14px;background:#fff7e6;border-radius:8px;border:1px solid #ffe0b2;font-size:0.85rem;">💡 以上时间/票价为<b>估算区间</b>，实际以 <a href="https://www.12306.cn/index/otn/leftTicket/init" target="_blank" style="color:#e67e22;font-weight:700;text-decoration:underline;">12306官网实时查询 →</a> 为准（搜索「${fromKey} → ${toKey}」）</div>`;
+    html += `<br><br><div style="margin-top:4px;padding:10px 14px;background:#fff7e6;border-radius:8px;border:1px solid #ffe0b2;font-size:0.85rem;">💡 以上时间/票价为<b>估算区间</b>，实际以 <a href="https://www.12306.cn" target="_blank" style="color:#e67e22;font-weight:700;text-decoration:underline;">12306官网实时查询 →</a> 为准（搜索「${fromKey} → ${toKey}」）</div>`;
     resultEl.innerHTML = html;
     resultEl.classList.add('show');
 }
