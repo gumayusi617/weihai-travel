@@ -1713,8 +1713,8 @@ function calcRoute() {
     const a = Math.sin(dLat/2)**2 + Math.cos(from.lat*Math.PI/180)*Math.cos(to.lat*Math.PI/180)*Math.sin(dLng/2)**2;
     const dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     const roadDist = Math.round(dist * 1.2);
-    // 铁路实际里程比直线长（绕行系数：短途绕得多，长途接近直线）
-    const railDetour = dist > 600 ? 1.25 : dist > 300 ? 1.35 : 1.45;
+    // 铁路实际里程比直线长（到威海的线路多需绕行渤海湾，长途绕行明显）
+    const railDetour = dist > 600 ? 1.8 : dist > 300 ? 2.0 : 1.35;
     const railDist = Math.round(dist * railDetour);
 
     let html = `<strong>📍 ${fromKey}（${from.type}）→ ${toKey}（${to.type}）</strong><br>`;
@@ -1769,6 +1769,7 @@ function calcRoute() {
     }
 
     html += `<br><br><a href="#" onclick="event.preventDefault();jumpToMap('${toKey}',${to.lat},${to.lng})" style="color:var(--primary);font-weight:600;">🗺️ 在地图中查看目的地 →</a>`;
+    html += `<br><br><div style="margin-top:4px;padding:10px 14px;background:#fff7e6;border-radius:8px;border:1px solid #ffe0b2;font-size:0.85rem;">💡 以上时间/票价为<b>估算区间</b>，实际以 <a href="https://www.12306.cn/index/otn/leftTicket/init" target="_blank" style="color:#e67e22;font-weight:700;text-decoration:underline;">12306官网实时查询 →</a> 为准（搜索「${fromKey} → ${toKey}」）</div>`;
     resultEl.innerHTML = html;
     resultEl.classList.add('show');
 }
